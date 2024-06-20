@@ -2,6 +2,7 @@ import pygame
 import sys
 import random
 from collections import deque
+import time
 
 # Pygame 초기화
 pygame.init()
@@ -49,6 +50,51 @@ level = []
 player_pos = [0, 0]
 goal_count = 0
 player_history = deque()  # 플레이어의 위치 정보 저장
+
+
+########################
+######## PHASE 2 #######
+########################
+# 게임 타이머 및 난이도
+game_timer = 0
+start_time = 0
+difficulty = 'easy'  # 기본 난이도 설정
+# 플레이어가 게임을 패배했는지 판단
+def is_defeat():
+    font = pygame.font.SysFont(None, 100)
+    message = font.render("Time's Up! You Lose!", True, (255, 0, 0))
+    screen.blit(message, (screen_width // 2 - 300, screen_height // 2 - 50))
+    pygame.display.flip()
+    pygame.time.wait(2000)
+    reset_game()
+# 남은 시간(타이머) 표시
+def display_timer(remaining_time):
+    font = pygame.font.SysFont(None, 50)
+    timer_message = font.render(f"Time left: {remaining_time} seconds", True, (0, 0, 0))
+    screen.blit(timer_message, (10, 10))
+# 난이도 선택 표시
+def choose_difficulty():
+    global game_timer, difficulty
+    print("Choose difficulty: Easy (1), Normal (2), Hard (3)")
+    choice = input("Enter your choice (1-3): ")
+    if choice == '1':
+        game_timer = 60
+        difficulty = 'easy'
+    elif choice == '2':
+        game_timer = 30
+        difficulty = 'normal'
+    elif choice == '3':
+        game_timer = 15
+        difficulty = 'hard'
+    else:
+        print("Invalid choice, defaulting to Easy.")
+        game_timer = 60  # 기본 설정은 쉬움
+
+    reset_game()  # 게임 초기화와 함께 타이머 시작
+########################
+######## PHASE 2 #######
+########################
+
 
 #비어있는 맵을 생성
 def create_empty_map(width, height):
@@ -170,19 +216,22 @@ def move_player(dx, dy):
 # 플레이어가 이겼는지 판단함
 def is_win():
     global goal_count
-    if goal_count == 0:
+    # Check all map tiles for boxes on goal condition
+    boxes_on_goals = sum(1 for row in level for tile in row if tile == BOX_ON_GOAL)
+    if boxes_on_goals == goal_count:
         font = pygame.font.SysFont(None, 100)
         text = font.render("YOU WIN!", True, (255, 0, 0))
         screen.blit(text, (screen_width // 2 - 200, screen_height // 2 - 50))
         pygame.display.flip()
-        pygame.time.wait(2000)  # 2초간 대기
-        reset_game()  # 게임 초기화 함수 호출
+        pygame.time.wait(2000)
+        reset_game()
 
 #새로운 맵을 생성하여 게임 리셋
 def reset_game():
-    global level, player_pos, player_history
+    global level, player_pos, player_history, start_time, game_timer
     level, player_pos = generate_sokoban_map(10, 10, 3)
     player_history.clear()
+    start_time = time.time()
 
 #시작 메뉴를 표시
 def show_menu():
@@ -210,10 +259,16 @@ def show_controls():
 
 # 메인 루프
 def run():
-    global level
-    global game_state
+    global level, game_state, start_time
     running = True
+    clock = pygame.time.Clock()
+    choose_difficulty()  # Allow player to choose difficulty
+
     while running:
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+        remaining_time = max(0, int(game_timer - elapsed_time))
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -227,9 +282,11 @@ def run():
                 elif game_state == STATE_CONTROLS:
                     if event.key == pygame.K_ESCAPE:  # ESC 키를 눌러 메뉴로 돌아감
                         game_state = STATE_MENU
+                        reset_game()
                 elif game_state == STATE_GAME:
                     if event.key == pygame.K_ESCAPE:  # ESC 키를 눌러 메뉴로 돌아감
                         game_state = STATE_MENU
+                        reset_game()
                     elif event.key == pygame.K_UP:
                         move_player(0, -1)
                         is_win()
@@ -264,7 +321,14 @@ def run():
         elif game_state == STATE_GAME:
             draw_level(level)
             draw_player()
-            pygame.display.flip()
+            display_timer(remaining_time)
+
+        pygame.display.flip()
+
+        if remaining_time <= 0:
+            is_defeat()
+
+        clock.tick(60)
 
     pygame.quit()
     sys.exit()
